@@ -3,8 +3,19 @@ import type { EngineState, SceneDefinition, SceneObject } from "./types";
 import type { DoodleStroke, DoodleTool } from "./doodle";
 import { DOODLE_TOOL_META } from "./doodle";
 import type { GeometryKind } from "./types";
+import type { ProviderId, ProviderInfo } from "@/lib/llm";
+import { saveLLMSelection } from "./persistence";
 
 export type BuilderStatus = "idle" | "generating" | "editing" | "error";
+
+interface LLMState {
+  /** Manifest fetched from /api/providers, or null until loaded. */
+  manifest: ProviderInfo[] | null;
+  /** Provider currently selected for new requests. */
+  provider: ProviderId;
+  /** Model id; null means "use the provider's default". */
+  model: string | null;
+}
 
 interface DoodleState {
   enabled: boolean;
@@ -29,6 +40,10 @@ interface BuilderState {
 }
 
 interface EngineActions {
+  setLLMManifest: (manifest: ProviderInfo[]) => void;
+  setLLMProvider: (provider: ProviderId, model?: string | null) => void;
+  setLLMModel: (model: string | null) => void;
+
   setScenes: (scenes: SceneDefinition[]) => void;
   appendScenes: (scenes: SceneDefinition[]) => void;
   replaceScene: (sceneId: string, scene: SceneDefinition) => void;
@@ -66,7 +81,11 @@ interface EngineActions {
 }
 
 type Store = EngineState &
-  EngineActions & { builder: BuilderState; doodle: DoodleState };
+  EngineActions & {
+    builder: BuilderState;
+    doodle: DoodleState;
+    llm: LLMState;
+  };
 
 export const useEngine = create<Store>((set) => ({
   scenes: [],
@@ -95,6 +114,11 @@ export const useEngine = create<Store>((set) => ({
     strokes: [],
     placeShape: "sphere",
     morphTarget: "sphere",
+  },
+  llm: {
+    manifest: null,
+    provider: "anthropic",
+    model: null,
   },
 
   setScenes: (scenes) =>
@@ -168,6 +192,19 @@ export const useEngine = create<Store>((set) => ({
     })),
 
   setFps: (fps) => set({ fps }),
+
+  setLLMManifest: (manifest) =>
+    set((s) => ({ llm: { ...s.llm, manifest } })),
+  setLLMProvider: (provider, model = null) =>
+    set((s) => {
+      saveLLMSelection({ version: 1, provider, model });
+      return { llm: { ...s.llm, provider, model } };
+    }),
+  setLLMModel: (model) =>
+    set((s) => {
+      saveLLMSelection({ version: 1, provider: s.llm.provider, model });
+      return { llm: { ...s.llm, model } };
+    }),
 
   setBuilderStatus: (status) =>
     set((s) => ({ builder: { ...s.builder, status } })),

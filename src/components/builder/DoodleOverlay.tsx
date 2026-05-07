@@ -50,6 +50,8 @@ export default function DoodleOverlay() {
   const setBuilderStatus = useEngine((s) => s.setBuilderStatus);
   const setBuilderError = useEngine((s) => s.setBuilderError);
   const setToast = useEngine((s) => s.setToast);
+  const llmProvider = useEngine((s) => s.llm.provider);
+  const llmModel = useEngine((s) => s.llm.model);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const drawingRef = useRef(false);
@@ -165,7 +167,13 @@ export default function DoodleOverlay() {
       const res = await fetch("/api/apply-doodle", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ scene, strokes, prompt: note.trim() || undefined }),
+        body: JSON.stringify({
+          scene,
+          strokes,
+          prompt: note.trim() || undefined,
+          provider: llmProvider,
+          model: llmModel ?? undefined,
+        }),
       });
       const json = (await res.json()) as {
         scene?: SceneDefinition;

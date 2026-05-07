@@ -96,9 +96,11 @@ export default function Engine() {
             Why this matters
           </div>
           <div className="text-base md:text-lg text-white/75 leading-relaxed font-light max-w-3xl">
-            When the next, better model ships, you swap{" "}
+            When a better model ships, you flip the picker in the builder
+            (Anthropic / OpenAI / Google / OpenRouter) — or drop a new
+            adapter into{" "}
             <span className="font-mono text-cyan-200/80">
-              src/lib/anthropic.ts
+              src/lib/llm/providers/
             </span>{" "}
             and ship. The renderer, the scroll choreography, the morph engine
             — your moat — never changes.
