@@ -4,8 +4,12 @@ import { LLMError } from "../types";
 /**
  * Google Gemini adapter (REST `generateContent` API).
  *
- * Gemini accepts a `systemInstruction` block which we map our `system` to,
- * and prefill is faked by inserting a model-role turn before the prompt.
+ * Gemini accepts a `systemInstruction` block which we map our `system` to.
+ *
+ * `responseMimeType: "application/json"` constrains the model to output
+ * a complete, valid JSON value (object or array), so we don't try to fake
+ * an Anthropic-style `assistantPrefill` here — we just nudge the model
+ * via the system prompt when one is requested.
  */
 
 interface GeminiPart {
@@ -56,20 +60,20 @@ export const googleAdapter: LLMProviderAdapter = {
       model,
     )}:generateContent?key=${encodeURIComponent(key())}`;
 
-    const contents: Array<{
-      role: "user" | "model";
-      parts: { text: string }[];
-    }> = [{ role: "user", parts: [{ text: req.user }] }];
-    if (req.assistantPrefill) {
-      contents.push({ role: "model", parts: [{ text: req.assistantPrefill }] });
-    }
+    // assistantPrefill is treated as a soft hint via the system prompt.
+    // Gemini's `responseMimeType: application/json` ensures the response
+    // is valid JSON regardless, and (unlike OpenAI's json_object) does not
+    // restrict the top level to an object — arrays are allowed.
+    const system = req.assistantPrefill
+      ? `${req.system}\n\nIMPORTANT: Begin your response with "${req.assistantPrefill}" and output only raw JSON. No prose, no markdown fences.`
+      : req.system;
 
     const res = await fetch(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: req.system }] },
-        contents,
+        systemInstruction: { parts: [{ text: system }] },
+        contents: [{ role: "user", parts: [{ text: req.user }] }],
         generationConfig: {
           temperature: req.temperature ?? 0.7,
           maxOutputTokens: req.maxTokens ?? 4096,
@@ -100,6 +104,6 @@ export const googleAdapter: LLMProviderAdapter = {
 
     if (!text) throw new LLMError("Empty response from model", 502, "google");
 
-    return req.assistantPrefill ? req.assistantPrefill + text : text;
+    return text;
   },
 };
