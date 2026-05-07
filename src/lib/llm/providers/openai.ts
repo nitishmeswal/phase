@@ -8,6 +8,11 @@ import { LLMError } from "../types";
  * system prompt — OpenAI's API doesn't support trailing-assistant prefills
  * the way Anthropic's does. In practice, with `temperature` <= 1 and a
  * "respond with raw JSON only" system prompt, this is enough.
+ *
+ * `response_format: { type: "json_object" }` is enabled only when the
+ * caller is asking for an object (`assistantPrefill === "{"` or none) —
+ * OpenAI's json mode rejects bare arrays, so for array prefills we fall
+ * back to the system-prompt instruction alone. See PR #4 review.
  */
 const URL = "https://api.openai.com/v1/chat/completions";
 
@@ -49,22 +54,31 @@ export const openaiAdapter: LLMProviderAdapter = {
       ? `${req.system}\n\nIMPORTANT: Begin your response with "${req.assistantPrefill}" and output only raw JSON. No prose, no markdown fences.`
       : req.system;
 
+    // OpenAI's json_object mode forces an object at the top level — using
+    // it when the caller asked for an array (prefill="[") would silently
+    // break multi-scene generation. Skip it in that case.
+    const wantsArray = req.assistantPrefill === "[";
+
+    const body: Record<string, unknown> = {
+      model,
+      max_tokens: req.maxTokens ?? 4096,
+      temperature: req.temperature ?? 0.7,
+      messages: [
+        { role: "system", content: system },
+        { role: "user", content: req.user },
+      ],
+    };
+    if (!wantsArray) {
+      body.response_format = { type: "json_object" };
+    }
+
     const res = await fetch(URL, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${key()}`,
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        model,
-        max_tokens: req.maxTokens ?? 4096,
-        temperature: req.temperature ?? 0.7,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: req.user },
-        ],
-        response_format: { type: "json_object" },
-      }),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
