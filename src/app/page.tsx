@@ -11,6 +11,8 @@ import HUD from "@/components/ui/HUD";
 import LandingCopy from "@/components/ui/LandingCopy";
 import PromptDock from "@/components/builder/PromptDock";
 import ProjectToolbar from "@/components/builder/ProjectToolbar";
+import DoodleOverlay from "@/components/builder/DoodleOverlay";
+import DoodleToggle from "@/components/builder/DoodleToggle";
 import Toaster from "@/components/ui/Toaster";
 import { loadProject, saveProject } from "@/engine/persistence";
 
@@ -53,6 +55,8 @@ export default function Home() {
       <HUD />
       <ProjectToolbar />
       <EditorOverlay />
+      <DoodleToggle />
+      <DoodleOverlay />
       <PromptDock />
       <Toaster />
 

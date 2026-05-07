@@ -35,6 +35,7 @@ export default function PromptDock() {
 
   const status = useEngine((s) => s.builder.status);
   const lastError = useEngine((s) => s.builder.lastError);
+  const doodleOn = useEngine((s) => s.doodle.enabled);
   const setScenes = useEngine((s) => s.setScenes);
   const appendScenes = useEngine((s) => s.appendScenes);
   const setBuilderStatus = useEngine((s) => s.setBuilderStatus);
@@ -113,6 +114,7 @@ export default function PromptDock() {
 
   return (
     <>
+      {!doodleOn && (
       <button
         data-prompt-dock-trigger
         onClick={() => setOpen(true)}
@@ -128,6 +130,7 @@ export default function PromptDock() {
           </kbd>
         </div>
       </button>
+      )}
 
       {open && (
         <div

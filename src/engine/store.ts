@@ -1,7 +1,22 @@
 import { create } from "zustand";
 import type { EngineState, SceneDefinition, SceneObject } from "./types";
+import type { DoodleStroke, DoodleTool } from "./doodle";
+import { DOODLE_TOOL_META } from "./doodle";
+import type { GeometryKind } from "./types";
 
 export type BuilderStatus = "idle" | "generating" | "editing" | "error";
+
+interface DoodleState {
+  enabled: boolean;
+  tool: DoodleTool;
+  /** Active stroke being drawn — committed to `strokes` on pointer-up. */
+  pending: DoodleStroke | null;
+  strokes: DoodleStroke[];
+  /** Default placement shape for the "place" brush. */
+  placeShape: GeometryKind;
+  /** Default morph target geometry for the "morph" brush. */
+  morphTarget: GeometryKind;
+}
 
 interface BuilderState {
   status: BuilderStatus;
@@ -39,9 +54,19 @@ interface EngineActions {
   setLastPrompt: (p: string) => void;
   setToast: (msg: string | null) => void;
   setIsUserProject: (v: boolean) => void;
+
+  toggleDoodle: () => void;
+  setDoodleTool: (tool: DoodleTool) => void;
+  setDoodlePlaceShape: (shape: GeometryKind) => void;
+  setDoodleMorphTarget: (shape: GeometryKind) => void;
+  setDoodlePending: (stroke: DoodleStroke | null) => void;
+  commitDoodleStroke: (stroke: DoodleStroke) => void;
+  undoDoodleStroke: () => void;
+  clearDoodle: () => void;
 }
 
-type Store = EngineState & EngineActions & { builder: BuilderState };
+type Store = EngineState &
+  EngineActions & { builder: BuilderState; doodle: DoodleState };
 
 export const useEngine = create<Store>((set) => ({
   scenes: [],
@@ -62,6 +87,14 @@ export const useEngine = create<Store>((set) => ({
     lastError: null,
     toast: null,
     isUserProject: false,
+  },
+  doodle: {
+    enabled: false,
+    tool: "path",
+    pending: null,
+    strokes: [],
+    placeShape: "sphere",
+    morphTarget: "sphere",
   },
 
   setScenes: (scenes) =>
@@ -145,4 +178,44 @@ export const useEngine = create<Store>((set) => ({
   setToast: (toast) => set((s) => ({ builder: { ...s.builder, toast } })),
   setIsUserProject: (isUserProject) =>
     set((s) => ({ builder: { ...s.builder, isUserProject } })),
+
+  toggleDoodle: () =>
+    set((s) => ({
+      doodle: {
+        ...s.doodle,
+        enabled: !s.doodle.enabled,
+        // When toggling off, drop any in-flight stroke so we don't strand it.
+        pending: !s.doodle.enabled ? s.doodle.pending : null,
+      },
+    })),
+  setDoodleTool: (tool) =>
+    set((s) => ({
+      doodle: {
+        ...s.doodle,
+        tool,
+        pending: null,
+      },
+      // Show the tool's hint as a transient toast so users learn the gestures.
+      builder: { ...s.builder, toast: DOODLE_TOOL_META[tool].hint },
+    })),
+  setDoodlePlaceShape: (placeShape) =>
+    set((s) => ({ doodle: { ...s.doodle, placeShape } })),
+  setDoodleMorphTarget: (morphTarget) =>
+    set((s) => ({ doodle: { ...s.doodle, morphTarget } })),
+  setDoodlePending: (pending) =>
+    set((s) => ({ doodle: { ...s.doodle, pending } })),
+  commitDoodleStroke: (stroke) =>
+    set((s) => ({
+      doodle: {
+        ...s.doodle,
+        pending: null,
+        strokes: [...s.doodle.strokes, stroke],
+      },
+    })),
+  undoDoodleStroke: () =>
+    set((s) => ({
+      doodle: { ...s.doodle, strokes: s.doodle.strokes.slice(0, -1) },
+    })),
+  clearDoodle: () =>
+    set((s) => ({ doodle: { ...s.doodle, strokes: [], pending: null } })),
 }));

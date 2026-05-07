@@ -76,12 +76,13 @@ function str(v: unknown, fallback: string): string {
 
 function id(v: unknown, fallback: string): string {
   if (typeof v !== "string" || v.trim() === "") return fallback;
-  return v
+  const sanitized = v
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 64);
+  return sanitized || fallback;
 }
 
 function animation(v: unknown): AnimationBehaviour {
