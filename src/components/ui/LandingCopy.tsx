@@ -30,15 +30,32 @@ export default function LandingCopy() {
           </h1>
 
           <p className="max-w-2xl text-sm md:text-base text-white/45 leading-7 font-light">
-            This MVP starts with the correct foundation: proxy geometry,
-            scene-based architecture, scroll choreography, object metadata,
-            semantic morphing, and a visual correction layer. It is not a
-            finished builder yet — it is the engine spine.
+            Prompt cinematic 3D web experiences in plain English. Phase
+            builds the scene graph, choreographs scroll timelines, animates
+            alive proxy geometry, and morphs meshes between semantic states —
+            then lets you visually correct any object inline.
           </p>
+
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <button
+              onClick={() => {
+                const trigger = document.querySelector<HTMLButtonElement>(
+                  "[data-prompt-dock-trigger]",
+                );
+                trigger?.click();
+              }}
+              className="pointer-events-auto rounded-full px-5 py-2.5 text-[11px] font-mono tracking-[0.18em] uppercase border bg-cyan-300/15 hover:bg-cyan-300/25 border-cyan-300/40 text-cyan-100 shadow-[0_0_24px_rgba(110,200,255,0.18)] transition-all"
+            >
+              ◆ Build a scene from a prompt
+            </button>
+            <span className="text-[10px] font-mono text-white/30 tracking-wider">
+              or scroll to explore the demo project ↓
+            </span>
+          </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 max-w-3xl pt-4">
             {[
-              "Scene graph",
+              "Prompt → scene",
               "Scroll timelines",
               "Alive geometry",
               "Visual edits",

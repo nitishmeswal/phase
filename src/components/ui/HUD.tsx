@@ -21,8 +21,8 @@ export default function HUD() {
 
   return (
     <div
-      className={`fixed bottom-8 left-1/2 -translate-x-1/2 z-40 transition-all duration-700 ${
-        visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
+      className={`fixed top-5 left-1/2 -translate-x-1/2 z-40 transition-all duration-700 ${
+        visible ? "opacity-100 translate-y-0" : "opacity-0 -translate-y-4"
       }`}
     >
       <div className="flex items-center gap-4 bg-black/40 backdrop-blur-xl border border-white/5 rounded-full px-6 py-3">
