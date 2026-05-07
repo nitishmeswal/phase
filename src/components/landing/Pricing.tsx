@@ -135,17 +135,17 @@ export default function Pricing() {
               seats.
             </li>
             <li>
-              <span className="font-mono text-amber-200/80">4.</span> You can
-              swap to{" "}
+              <span className="font-mono text-amber-200/80">4.</span> Flip the
+              model picker in the builder to{" "}
               <span className="font-mono text-cyan-200/80">
                 gpt-4o-mini
               </span>{" "}
               or{" "}
               <span className="font-mono text-cyan-200/80">
-                gemini-flash
+                gemini-2.5-flash
               </span>{" "}
-              and cut per-call cost ~5×, or run a local model and pay $0 per
-              call.
+              to cut per-call cost ~5×. Or point OpenRouter at a self-hosted
+              model and pay $0 per call.
             </li>
           </ol>
         </div>

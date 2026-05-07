@@ -25,6 +25,8 @@ export default function EditorOverlay() {
   const setBuilderStatus = useEngine((s) => s.setBuilderStatus);
   const setBuilderError = useEngine((s) => s.setBuilderError);
   const setToast = useEngine((s) => s.setToast);
+  const llmProvider = useEngine((s) => s.llm.provider);
+  const llmModel = useEngine((s) => s.llm.model);
 
   const scene = scenes[currentSceneIndex];
   const selectedObj = scene?.objects.find((o) => o.id === selectedId);
@@ -56,6 +58,8 @@ export default function EditorOverlay() {
             object: selectedObj,
             prompt: instruction,
             sceneLabel: scene.label,
+            provider: llmProvider,
+            model: llmModel ?? undefined,
           }),
         });
         const json = (await res.json()) as {
@@ -72,7 +76,12 @@ export default function EditorOverlay() {
         const res = await fetch("/api/edit-scene", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ scene, prompt: instruction }),
+          body: JSON.stringify({
+            scene,
+            prompt: instruction,
+            provider: llmProvider,
+            model: llmModel ?? undefined,
+          }),
         });
         const json = (await res.json()) as {
           scene?: SceneDefinition;

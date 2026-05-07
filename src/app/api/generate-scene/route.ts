@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import {
-  AnthropicError,
-  callClaude,
+  LLMError,
+  callLLM,
   parseJsonFromModel,
-} from "@/lib/anthropic";
+  type ProviderId,
+} from "@/lib/llm";
 import { SCENE_SCHEMA_PROMPT } from "@/engine/schema";
 import { validateScene, validateScenes } from "@/engine/validate";
 import type { SceneDefinition } from "@/engine/types";
@@ -14,6 +15,10 @@ interface Body {
   prompt?: string;
   /** When true, ask the model for an array of 1-3 connected scenes. */
   multi?: boolean;
+  /** Optional LLM provider override (anthropic | openai | google | openrouter). */
+  provider?: ProviderId;
+  /** Optional model id override. */
+  model?: string;
 }
 
 const SYSTEM = `${SCENE_SCHEMA_PROMPT}
@@ -64,7 +69,9 @@ ${prompt}
 Return a single JSON SceneDefinition object.`;
 
   try {
-    const raw = await callClaude({
+    const raw = await callLLM({
+      provider: body.provider,
+      model: body.model,
       system: SYSTEM,
       user: userMsg,
       assistantPrefill: body.multi ? "[" : "{",
@@ -92,7 +99,7 @@ Return a single JSON SceneDefinition object.`;
 
     return NextResponse.json({ scenes });
   } catch (err) {
-    const status = err instanceof AnthropicError ? err.status : 500;
+    const status = err instanceof LLMError ? err.status : 500;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unknown error" },
       { status },

@@ -13,6 +13,7 @@ import PromptDock from "@/components/builder/PromptDock";
 import ProjectToolbar from "@/components/builder/ProjectToolbar";
 import DoodleOverlay from "@/components/builder/DoodleOverlay";
 import DoodleToggle from "@/components/builder/DoodleToggle";
+import ModelPicker from "@/components/builder/ModelPicker";
 import Toaster from "@/components/ui/Toaster";
 import { loadProject, saveProject } from "@/engine/persistence";
 
@@ -62,6 +63,7 @@ export default function BuildPage() {
       <SceneIndicator />
       <HUD />
       <ProjectToolbar />
+      <ModelPicker />
       <EditorOverlay />
       <DoodleToggle />
       <DoodleOverlay />

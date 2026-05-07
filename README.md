@@ -77,7 +77,7 @@ visual edit is engine work, running in the browser, with no API calls.
 | Post-processing   | Bloom, Vignette, Chromatic Aberration      |
 | State             | Zustand                                    |
 | Styling           | Tailwind CSS                               |
-| AI interpreter    | Anthropic Claude (swappable)               |
+| AI interpreter    | Anthropic / OpenAI / Google / OpenRouter   |
 
 ---
 
@@ -93,7 +93,9 @@ visual edit is engine work, running in the browser, with no API calls.
 | Demo seed               | `src/engine/sceneGraph.ts`                            | Three hand-authored demo scenes.                      |
 | Persistence             | `src/engine/persistence.ts`                           | `localStorage` save / load.                           |
 | Zustand store           | `src/engine/store.ts`                                 | Runtime state: scenes, scroll, editor, builder.       |
-| Anthropic helper        | `src/lib/anthropic.ts`                                | Tiny `fetch`-based Messages API client + JSON parse.  |
+| LLM dispatcher          | `src/lib/llm/index.ts`                                | Single entrypoint; picks provider + model.            |
+| Provider adapters       | `src/lib/llm/providers/*.ts`                          | Anthropic / OpenAI / Google / OpenRouter HTTP clients.|
+| Model catalog           | `src/lib/llm/models.ts`                               | Curated models per provider with per-MTok pricing.    |
 | `PhaseCanvas`           | `src/components/canvas/PhaseCanvas.tsx`               | R3F canvas + post-processing.                         |
 | `SceneRenderer`         | `src/components/canvas/SceneRenderer.tsx`             | Camera interpolation + per-scene object rendering.    |
 | `ProxyMesh`             | `src/components/geometry/ProxyMesh.tsx`               | Alive geometry, materials, morph engine, picking.     |
@@ -104,21 +106,49 @@ visual edit is engine work, running in the browser, with no API calls.
 | `DoodleToggle`          | `src/components/builder/DoodleToggle.tsx`             | Top-right "DRAW" button that arms doodle mode.        |
 | Doodle types            | `src/engine/doodle.ts`                                | Brush vocabulary, normalization, stroke geometry.     |
 | `ProjectToolbar`        | `src/components/builder/ProjectToolbar.tsx`           | Reset / export project.                               |
+| `ModelPicker`           | `src/components/builder/ModelPicker.tsx`              | Provider + model dropdown; persists to `localStorage`.|
 
 ### AI routes
 
-| Route                       | In                                          | Out                                |
-|-----------------------------|---------------------------------------------|------------------------------------|
-| `POST /api/generate-scene`  | `{ prompt, multi? }`                        | `{ scenes: SceneDefinition[] }`    |
-| `POST /api/edit-object`     | `{ object, prompt, sceneLabel? }`           | `{ object: SceneObject }`          |
-| `POST /api/edit-scene`      | `{ scene, prompt }`                         | `{ scene: SceneDefinition }`       |
-| `POST /api/apply-doodle`    | `{ scene, strokes: DoodleStroke[], prompt? }` | `{ scene: SceneDefinition }`     |
+| Route                       | In                                                                | Out                                |
+|-----------------------------|-------------------------------------------------------------------|------------------------------------|
+| `POST /api/generate-scene`  | `{ prompt, multi?, provider?, model? }`                           | `{ scenes: SceneDefinition[] }`    |
+| `POST /api/edit-object`     | `{ object, prompt, sceneLabel?, provider?, model? }`              | `{ object: SceneObject }`          |
+| `POST /api/edit-scene`      | `{ scene, prompt, provider?, model? }`                            | `{ scene: SceneDefinition }`       |
+| `POST /api/apply-doodle`    | `{ scene, strokes: DoodleStroke[], prompt?, provider?, model? }`  | `{ scene: SceneDefinition }`       |
+| `GET  /api/providers`       | —                                                                 | `{ providers, defaultProviderId }` |
 
-Each route ships the schema as a system prompt, asks Claude to return
-**only JSON**, prefills the assistant turn with `{` or `[` to force the
-shape, parses the response with a tolerant JSON extractor, then runs the
-result through `validateScene` / `validateObject` so out-of-range or
-unknown fields are clamped — never crashed.
+Each route ships the schema as a system prompt, asks the chosen LLM to
+return **only JSON**, prefills the assistant turn with `{` or `[` to
+force the shape, parses the response with a tolerant JSON extractor,
+then runs the result through `validateScene` / `validateObject` so
+out-of-range or unknown fields are clamped — never crashed.
+
+### Swappable LLM providers
+
+Phase ships with adapters for four providers. Pick one per request, or
+set deployment-wide defaults via env. The model picker dropdown in `/build`
+(top-left, next to the project toolbar) lets users flip between providers
+and models per call; selection persists in `localStorage`.
+
+| Provider     | Env var                                     | Default model                |
+|--------------|---------------------------------------------|------------------------------|
+| Anthropic    | `ANTHROPIC_API_KEY`                         | `claude-sonnet-4-20250514`   |
+| OpenAI       | `OPENAI_API_KEY`                            | `gpt-4o`                     |
+| Google       | `GOOGLE_API_KEY` (or `GEMINI_API_KEY`)      | `gemini-2.5-flash`           |
+| OpenRouter   | `OPENROUTER_API_KEY`                        | `anthropic/claude-sonnet-4`  |
+
+Server-wide overrides:
+
+```bash
+LLM_PROVIDER=openai          # which provider to use when none is requested
+LLM_MODEL=gpt-4o-mini        # which model to use when none is requested
+```
+
+`GET /api/providers` returns the list of providers along with which ones
+are actually configured on this deployment, so the UI greys out
+providers without an API key. Adding a provider is one new file in
+`src/lib/llm/providers/` plus an entry in `src/lib/llm/models.ts`.
 
 ### Doodle pipeline
 
@@ -173,22 +203,23 @@ npm run dev
 
 Then open <http://localhost:3000>.
 
-You will need an Anthropic API key. Either:
+You will need an API key for **at least one** supported provider:
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
+export ANTHROPIC_API_KEY=sk-ant-...     # most flexible default
+# or, instead / in addition to:
+export OPENAI_API_KEY=sk-...
+export GOOGLE_API_KEY=AIza...           # alias: GEMINI_API_KEY
+export OPENROUTER_API_KEY=sk-or-...
 ```
 
-…or place a `.env.local` file at the repo root:
+…or place a `.env.local` file at the repo root with any subset of the
+above. The model picker in `/build` only enables providers whose key is
+actually configured on the server.
 
-```
-ANTHROPIC_API_KEY=sk-ant-...
-# Optional override:
-# ANTHROPIC_MODEL=claude-sonnet-4-20250514
-```
-
-The engine still loads and renders the demo scenes without an API key —
-the prompt-builder just won't be able to author new scenes.
+The engine still loads and renders the demo scenes without any API key
+— the prompt-builder, editor, and doodle director just won't be able to
+author new scenes.
 
 ### Try it
 
@@ -207,6 +238,10 @@ the prompt-builder just won't be able to author new scenes.
   glow over a region, tap with the place brush to drop a new shape, draw
   a line from one object to another to morph the first into the second.
   Press *Apply doodle* and the scene rebuilds.
+- **Model picker** (top-left, next to the project toolbar) flips the LLM
+  used by every prompt / doodle / edit call. Cheap providers like Gemini
+  Flash or GPT-4o-mini cost roughly 5× less per call than Sonnet 4 — your
+  choice persists across sessions.
 
 ---
 

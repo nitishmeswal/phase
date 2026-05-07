@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import {
-  AnthropicError,
-  callClaude,
+  LLMError,
+  callLLM,
   parseJsonFromModel,
-} from "@/lib/anthropic";
+  type ProviderId,
+} from "@/lib/llm";
 import { SCENE_SCHEMA_PROMPT } from "@/engine/schema";
 import { validateObject } from "@/engine/validate";
 import type { SceneObject } from "@/engine/types";
@@ -14,6 +15,8 @@ interface Body {
   object?: SceneObject;
   prompt?: string;
   sceneLabel?: string;
+  provider?: ProviderId;
+  model?: string;
 }
 
 const SYSTEM = `${SCENE_SCHEMA_PROMPT}
@@ -86,7 +89,9 @@ ${instruction}
 Return the FULL updated SceneObject as JSON. Preserve "id".`;
 
   try {
-    const raw = await callClaude({
+    const raw = await callLLM({
+      provider: body.provider,
+      model: body.model,
       system: SYSTEM,
       user: userMsg,
       assistantPrefill: "{",
@@ -100,7 +105,7 @@ Return the FULL updated SceneObject as JSON. Preserve "id".`;
     const next: SceneObject = { ...validated, id: obj.id };
     return NextResponse.json({ object: next });
   } catch (err) {
-    const status = err instanceof AnthropicError ? err.status : 500;
+    const status = err instanceof LLMError ? err.status : 500;
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Unknown error" },
       { status },

@@ -36,6 +36,8 @@ export default function PromptDock() {
   const status = useEngine((s) => s.builder.status);
   const lastError = useEngine((s) => s.builder.lastError);
   const doodleOn = useEngine((s) => s.doodle.enabled);
+  const llmProvider = useEngine((s) => s.llm.provider);
+  const llmModel = useEngine((s) => s.llm.model);
   const setScenes = useEngine((s) => s.setScenes);
   const appendScenes = useEngine((s) => s.appendScenes);
   const setBuilderStatus = useEngine((s) => s.setBuilderStatus);
@@ -79,7 +81,12 @@ export default function PromptDock() {
       const res = await fetch("/api/generate-scene", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ prompt: trimmed, multi }),
+        body: JSON.stringify({
+          prompt: trimmed,
+          multi,
+          provider: llmProvider,
+          model: llmModel ?? undefined,
+        }),
       });
       const json = (await res.json()) as {
         scenes?: import("@/engine/types").SceneDefinition[];
