@@ -40,8 +40,9 @@ visual edit is engine work, running in the browser, with no API calls.
 
 - **Scene-graph schema** — strict TypeScript shape (`src/engine/types.ts`)
   shared between the renderer, the AI prompts, and the validator.
-- **AI interpreter** — three thin Next.js API routes that turn natural
-  language into scene-graph JSON: generate scene, edit object, edit scene.
+- **AI interpreter** — four thin Next.js API routes that turn natural
+  language *or doodles* into scene-graph JSON: generate scene, edit object,
+  edit scene, apply doodle.
 - **Renderer** — R3F + Drei + post-processing (bloom, vignette,
   chromatic aberration) consumes the scene graph and draws it.
 - **Scroll choreographer** — GSAP ScrollTrigger maps page scroll to scene
@@ -54,6 +55,11 @@ visual edit is engine work, running in the browser, with no API calls.
   metadata, type a natural-language correction ("make this glow more",
   "morph it into a torus knot", "slow it down"), the AI returns the
   patched SceneObject and the engine updates live.
+- **Doodle director** — toggle DRAW mode and *sketch* the choreography
+  on top of the live viewport. Each brush is a different motion intent
+  (path, swirl, glow, pulse, burst, place, morph, erase). The strokes are
+  normalized to scene coordinates and the AI patches the scene graph
+  accordingly. See "Doodle pipeline" below.
 - **Project persistence** — generated scenes survive reload via
   `localStorage`. Reset to demo, export full scene graph as JSON.
 - **Builder dock** — `⌘K` opens a prompt input where you describe a single
@@ -94,15 +100,19 @@ visual edit is engine work, running in the browser, with no API calls.
 | `ScrollChoreographer`   | `src/components/choreography/ScrollChoreographer.tsx` | GSAP ScrollTrigger → scene index + progress.          |
 | `EditorOverlay`         | `src/components/editor/EditorOverlay.tsx`             | Inspector + AI direction prompt + scene/object mode.  |
 | `PromptDock`            | `src/components/builder/PromptDock.tsx`               | `⌘K` builder modal — text → scene graph.              |
+| `DoodleOverlay`         | `src/components/builder/DoodleOverlay.tsx`            | SVG draw surface + brush toolbar + apply pipeline.    |
+| `DoodleToggle`          | `src/components/builder/DoodleToggle.tsx`             | Top-right "DRAW" button that arms doodle mode.        |
+| Doodle types            | `src/engine/doodle.ts`                                | Brush vocabulary, normalization, stroke geometry.     |
 | `ProjectToolbar`        | `src/components/builder/ProjectToolbar.tsx`           | Reset / export project.                               |
 
 ### AI routes
 
-| Route                   | In                                          | Out                                |
-|-------------------------|---------------------------------------------|------------------------------------|
-| `POST /api/generate-scene` | `{ prompt, multi? }`                      | `{ scenes: SceneDefinition[] }`    |
-| `POST /api/edit-object`    | `{ object, prompt, sceneLabel? }`         | `{ object: SceneObject }`          |
-| `POST /api/edit-scene`     | `{ scene, prompt }`                       | `{ scene: SceneDefinition }`       |
+| Route                       | In                                          | Out                                |
+|-----------------------------|---------------------------------------------|------------------------------------|
+| `POST /api/generate-scene`  | `{ prompt, multi? }`                        | `{ scenes: SceneDefinition[] }`    |
+| `POST /api/edit-object`     | `{ object, prompt, sceneLabel? }`           | `{ object: SceneObject }`          |
+| `POST /api/edit-scene`      | `{ scene, prompt }`                         | `{ scene: SceneDefinition }`       |
+| `POST /api/apply-doodle`    | `{ scene, strokes: DoodleStroke[], prompt? }` | `{ scene: SceneDefinition }`     |
 
 Each route ships the schema as a system prompt, asks Claude to return
 **only JSON**, prefills the assistant turn with `{` or `[` to force the
@@ -110,12 +120,47 @@ shape, parses the response with a tolerant JSON extractor, then runs the
 result through `validateScene` / `validateObject` so out-of-range or
 unknown fields are clamped — never crashed.
 
+### Doodle pipeline
+
+```
+DOODLE STROKES (2D, viewport-normalized, with brush + tool metadata)
+   │
+   ▼
+/api/apply-doodle  ──[ Claude w/ brush vocabulary ]──> SceneDefinition
+   │
+   ▼
+Validator → live render
+```
+
+Strokes are simplified to ≤24 points and tagged with their centroid +
+bounds before being sent, so the model reasons about shape and region,
+not pixel noise. The 2D drawing space is normalized to scene coords
+(`x ∈ [-2.5, 2.5]`, `y ∈ [-1.5, 1.5]`, `+Y` up) so a stroke at
+*viewport-bottom-right* is interpreted as a 3D position at
+*scene-bottom-right* with no further math.
+
+#### Brush vocabulary
+
+| Brush     | Gesture                  | Effect on the scene graph                                              |
+|-----------|--------------------------|-------------------------------------------------------------------------|
+| **Path**  | Free curve               | Hints object placement & motion personality (adds float + soft spin).   |
+| **Swirl** | Spiral / circular gesture| Adds spin/orbit to the closest object, axis from gesture plane.         |
+| **Glow**  | Scribble over a region   | Sets `material: glow`/`emissive`, raises bloom, drops a glow if empty.  |
+| **Pulse** | Circle / throb           | Adds `breathe + pulse`; drops a pulsing icosahedron if region is empty. |
+| **Burst** | X / star / radial mark   | Scatters 3-5 small ambient shapes around the centroid.                  |
+| **Place** | Tap (pick a shape first) | Drops one new SceneObject of the chosen geometry at the tap.            |
+| **Morph** | Line A→B (pick a target) | Sets `morphTo` on the start object so it morphs into the target shape.  |
+| **Erase** | Cross-out over an object | Removes that object.                                                    |
+
+Hotkeys: `1..8` switch brush, `⌘Z` undo, `Esc` exit doodle mode.
+
 ### Coordinate conventions
 
 - +Y up, +Z towards camera.
 - Cameras typically [0, 0.4, 5] → [0, 1.5, 9].
 - Objects within ±2.5 on X/Y, ±1 on Z; scales 0.4 → 2.4.
 - Colors stay in a dark cinematic palette; objects may glow, never pure white.
+- The doodle layer uses the same X/Y range so strokes map 1:1 into scene space.
 
 ---
 
@@ -157,6 +202,11 @@ the prompt-builder just won't be able to author new scenes.
   - Switch the editor mode to "scene" to direct the whole scene at once.
 - **Project menu** (top-left) lets you export the current scene graph as
   JSON or reset to the demo project.
+- **DRAW** (top-right) toggles doodle mode. Pick a brush and sketch
+  directly over the live canvas — swirl over a cube to spin it, scribble
+  glow over a region, tap with the place brush to drop a new shape, draw
+  a line from one object to another to morph the first into the second.
+  Press *Apply doodle* and the scene rebuilds.
 
 ---
 
@@ -175,6 +225,8 @@ the prompt-builder just won't be able to author new scenes.
 - [x] **Scene-level direction (`/api/edit-scene`)**
 - [x] **Builder dock + visual editor wired to AI**
 - [x] **Project persistence + JSON export**
+- [x] **Doodle director — draw motion / placement / morphs onto the canvas
+       (`/api/apply-doodle`)**
 
 ### Phase 2 — Reusable engine
 

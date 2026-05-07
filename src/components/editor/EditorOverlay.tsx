@@ -46,6 +46,7 @@ export default function EditorOverlay() {
       if (target === "object") {
         if (!selectedObj) {
           setToast("Select an object first.");
+          setBuilderStatus("idle");
           return;
         }
         const res = await fetch("/api/edit-object", {
